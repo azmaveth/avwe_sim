@@ -7,7 +7,7 @@ defmodule Avwe.InputTest do
 
   use ExUnit.Case, async: true
 
-  alias Avwe.{Event, Region, Store}
+  alias Avwe.{Event, Input, Region, Store}
   alias Avwe.Test.Poke
 
   @moduletag :tmp_dir
@@ -59,6 +59,36 @@ defmodule Avwe.InputTest do
       one_by_one = Enum.reduce(1..5, start, fn _n, acc -> Region.advance(acc, 1) end)
 
       assert Region.state_hash(Region.advance(start, 5)) == Region.state_hash(one_by_one)
+    end
+  end
+
+  describe "what is not an input" do
+    defmodule Stranger do
+      @moduledoc false
+      defstruct [:name]
+    end
+
+    test "is refused when it is submitted to a region's server, with the term in the reason" do
+      stranger = %Stranger{name: "nobody"}
+
+      assert Input.validate(stranger, region()) == {:error, {:not_an_input, stranger}}
+      assert Input.derived?(stranger) == false
+    end
+
+    test "is told so by every other function, and no region numbers it" do
+      stranger = %Stranger{name: "nobody"}
+      tick = %Avwe.Tick{step: 0, time: 0, dt: 60, seed: 1, region: {0, 0}}
+
+      for call <- [
+            fn -> Input.handle(stranger, region(), tick) end,
+            fn -> Input.order_key(stranger) end,
+            fn -> Input.seq(stranger) end,
+            fn -> Input.put_seq(stranger, 0) end
+          ] do
+        assert_raise ArgumentError, ~r/is not an input: it does not implement Avwe.Input/, call
+      end
+
+      assert_raise ArgumentError, ~r/Stranger/, fn -> Region.submit(region(), stranger) end
     end
   end
 

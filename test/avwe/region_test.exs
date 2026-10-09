@@ -44,6 +44,32 @@ defmodule Avwe.RegionTest do
   end
 
   describe "advance/3" do
+    test "an observer is told, after each system, its id and the region before and after it" do
+      parent = self()
+      observe = fn id, before, after_ -> send(parent, {:ran, id, before, after_}) end
+
+      region = region(1, [Lamp, Wander]) |> Region.advance(2, observe: observe)
+      assert region.step == 2
+
+      ran =
+        for _system <- 1..4,
+            do:
+              (
+                assert_receive {:ran, id, before, after_}
+                {id, before, after_}
+              )
+
+      assert Enum.map(ran, &elem(&1, 0)) ==
+               ["test.lamp/step", "module:Avwe.Test.Wander"] |> Stream.cycle() |> Enum.take(4)
+
+      # The lamp changes the environment, and the wanderer, which runs next, sees that.
+      [{_lamp, lamp_before, lamp_after}, {_wander, wander_before, wander_after} | _rest] = ran
+      refute Map.has_key?(lamp_before.env, :lit)
+      assert Map.has_key?(lamp_after.env, :lit)
+      assert wander_before.env == lamp_after.env
+      refute wander_before.components.position == wander_after.components.position
+    end
+
     test "moves time forward by dt per step" do
       region = region(1, []) |> Region.advance(3)
       assert {region.step, region.time} == {3, 180}

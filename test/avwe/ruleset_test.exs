@@ -16,6 +16,8 @@ defmodule Avwe.RulesetTest do
   defsystem(D, "test.ruleset.zz_early/step")
   defsystem(E, "test.ruleset.first/one")
   defsystem(F, "test.ruleset.first/two")
+  defsystem(Zebra, "test.ruleset.backwards/zebra")
+  defsystem(Aardvark, "test.ruleset.backwards/aardvark")
   defsystem(G, "test.ruleset.late/step")
   defsystem(H, "test.ruleset.after_ping/step")
   defsystem(Y, "test.ruleset.ties_y/step")
@@ -38,6 +40,11 @@ defmodule Avwe.RulesetTest do
   defrule(RNeeds, "test.ruleset.needs", requires: [:ping], uses: [:pong])
   defrule(RWrongId, "test.ruleset.wrongid", systems: [{"step", B}])
   defrule(RFirst, "test.ruleset.first", systems: [{"one", E}, {"two", F}])
+
+  # Listed in the opposite order to the alphabet of its ids.
+  defrule(RBackwards, "test.ruleset.backwards",
+    systems: [{"zebra", Zebra}, {"aardvark", Aardvark}]
+  )
 
   defrule(RLate, "test.ruleset.late",
     runs_after: ["test.ruleset.first/two"],
@@ -188,6 +195,13 @@ defmodule Avwe.RulesetTest do
 
   describe "order" do
     test "a rule's own systems run as it lists them, and others as they say" do
+      {:ok, backwards} = Ruleset.plan([RBackwards])
+
+      assert ids(backwards) == [
+               "test.ruleset.backwards/zebra",
+               "test.ruleset.backwards/aardvark"
+             ]
+
       {:ok, plan} = Ruleset.plan([RFirst, RLate, REarly])
 
       assert ids(plan) == [

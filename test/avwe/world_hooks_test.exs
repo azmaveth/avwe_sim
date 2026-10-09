@@ -65,6 +65,27 @@ defmodule Avwe.WorldHooksTest do
     assert submitted == [:y]
   end
 
+  test "a region refuses what is not an input, and goes on", %{tmp_dir: tmp_dir} do
+    {:ok, _pid} = start(tmp_dir, [])
+    pid = GenServer.whereis({:via, Registry, {Avwe.Registry, {:region, @world, @region}}})
+
+    assert {:error, {:not_an_input, %{not: "an input"}}} =
+             RegionServer.submit(@world, @region, %{not: "an input"})
+
+    # The server that was asked is the one that is still there, and nothing was journaled.
+    assert GenServer.whereis({:via, Registry, {Avwe.Registry, {:region, @world, @region}}}) ==
+             pid
+
+    Worlds.step(@world, 1)
+    Worlds.stop(@world)
+
+    {:ok, store} = Store.open(store_dir(tmp_dir), @region)
+    {:ok, records} = Store.records(store)
+    :ok = Store.close(store)
+
+    assert for({:avwe, 2, {:submit, _step, _input}} <- records, do: :submitted) == []
+  end
+
   test "a region refuses an input that a system made, which is never journaled", %{
     tmp_dir: tmp_dir
   } do
